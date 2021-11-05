@@ -6,7 +6,7 @@
 
 int main()
 {
-    int arr1[] = {10, 5, 2, 12, 6};
+    int arr1[] = {10, 5, 2, 12, 6, 7};
 
     int len1 = sizeof(arr1) / sizeof(arr1[0]);
     printf("The size of arr1 is %d\r\n", len1);
@@ -20,7 +20,7 @@ int main()
 
     printNodes(root);
     printf("The total node count is %d\r\n", size(root));
-    removeVal(5, root, NULL);
+    free(removeVal(5, root, NULL));
     printNodes(root);
     printf("The total node count is %d\r\n", size(root));
     printf("The validity of the BT is %d\r\n", checkIntegrity(root));
