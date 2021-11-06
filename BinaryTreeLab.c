@@ -5,17 +5,18 @@
 
 #include "BinaryTree.h"
 
-#define ONE_K 1000
-#define ONE_HUNDRED_K 100000
-#define THREAD_COUNT 16
+#define ONE_K 10
+#define ONE_HUNDRED_K 1000000
+#define THREAD_COUNT 1
 
 /* Mutex used for synchronization */
 pthread_mutex_t lock;
+static struct p *root;
 
 /**
  * Workload for lab3. requres srand(time(NULL)) call in main.
  */
-void workLoad(struct p *root)
+void workLoad()
 {
     pthread_mutex_lock(&lock);
 
@@ -29,7 +30,8 @@ void workLoad(struct p *root)
     {
         int key = rand() % 16384 + 1; /* Random number between 1 to 16384 */
         add(key, root);
-        removeVal(key, root);
+        root = removeVal(key, root);
+        printf("Iteration %d, root %d, key %d\r\n", i, root->v, key);
     }
 
     printf("The size of the array is %d\r\n", size(root));
@@ -44,14 +46,15 @@ void workLoad(struct p *root)
 int main()
 {
     pthread_mutex_init(&lock, NULL);
-
     srand(time(NULL));
-    struct p *root = (struct p *)malloc(sizeof(struct p));
+    root = (struct p *)malloc(sizeof(struct p));
+    int rootKey = rand() % 16384 + 1; /* Random number between 1 to 16384 */
+    root->v = rootKey;
     pthread_t tid;
 
-    // Let us create three threads
+    // Creating Threads
     for (int i = 0; i < THREAD_COUNT; i++)
-        pthread_create(&tid, NULL, workLoad, root);
+        pthread_create(&tid, NULL, workLoad, NULL);
 
     pthread_exit(NULL);
 
