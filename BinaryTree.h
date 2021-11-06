@@ -12,7 +12,9 @@ struct p
 };
 
 struct p *add(int v, struct p *somewhere);
+struct p *removeVal(int v, struct p *somewhere);
 struct p *removeValHelper(int v, struct p *somewhere, struct p *parent);
+int addNode(struct p *node, struct p *root);
 int size(struct p *root);
 int checkIntegrity(struct p *root);
 void printNodes(struct p *root);
@@ -48,7 +50,7 @@ struct p *add(int v, struct p *somewhere)
             temp = temp->right;
         }
     }
-
+    free(node);
     return node;
 }
 
@@ -58,6 +60,9 @@ struct p *add(int v, struct p *somewhere)
  */
 struct p *removeVal(int v, struct p *somewhere)
 {
+    if (somewhere == NULL)
+        return NULL;
+
     if (v == somewhere->v) /* Value is root */
     {
         struct p *del = somewhere;
@@ -70,9 +75,21 @@ struct p *removeVal(int v, struct p *somewhere)
             return somewhere;
         }
 
+        else if (somewhere->left != NULL)
+        {
+            somewhere = somewhere->left;
+            killNode(del);
+            return somewhere;
+        }
+        else if (somewhere->right != NULL)
+        {
+            somewhere = somewhere->right;
+            killNode(del);
+            return somewhere;
+        }
         else
         {
-            somewhere = (somewhere->left == NULL) ? somewhere->right : somewhere->left;
+            somewhere = NULL;
             killNode(del);
             return somewhere;
         }
@@ -125,15 +142,21 @@ struct p *removeValHelper(int v, struct p *somewhere, struct p *parent)
                 return parent;
             }
 
-            else if (somewhere->right == NULL)
+            else if (somewhere->left != NULL)
             {
                 parent->left = somewhere->left;
                 killNode(somewhere);
                 return parent;
             }
-            else /* somewhere->right == NULL */
+            else if (somewhere->right != NULL)
             {
                 parent->left = somewhere->right;
+                killNode(somewhere);
+                return parent;
+            }
+            else
+            {
+                parent->left = NULL;
                 killNode(somewhere);
                 return parent;
             }
@@ -148,15 +171,21 @@ struct p *removeValHelper(int v, struct p *somewhere, struct p *parent)
                 killNode(somewhere);
                 return parent;
             }
-            else if (somewhere->right == NULL)
+            else if (somewhere->left != NULL)
             {
                 parent->right = somewhere->left;
                 killNode(somewhere);
                 return parent;
             }
-            else /* somewhere->right == NULL */
+            else if (somewhere->right != NULL)
             {
                 parent->right = somewhere->right;
+                killNode(somewhere);
+                return parent;
+            }
+            else
+            {
+                parent->right = NULL;
                 killNode(somewhere);
                 return parent;
             }
@@ -170,6 +199,8 @@ struct p *removeValHelper(int v, struct p *somewhere, struct p *parent)
  */
 int addNode(struct p *node, struct p *root)
 {
+    if (node == NULL)
+        return NULL;
 
     struct p *temp = root;
     while (temp != NULL)
@@ -194,15 +225,17 @@ int addNode(struct p *node, struct p *root)
         }
     }
     /* Should not reach here */
+    printf("Error in adding node\n");
     return node->v;
 }
 
 void killNode(struct p *node)
 {
-    node->left = 0x0;
-    node->right = 0x0;
-    node->v = 0;
-    free(node);
+    free(node); /* Freeing node afterwards randomly assigned variables to that node */
+    node->left = NULL;
+    node->right = NULL;
+    node->v = NULL;
+    // free(node);
     return;
 }
 
