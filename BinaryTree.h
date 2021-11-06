@@ -12,7 +12,7 @@ struct p
 };
 
 struct p *add(int v, struct p *somewhere);
-struct p *removeVal(int v, struct p *somewhere, struct p *parent);
+struct p *removeValHelper(int v, struct p *somewhere, struct p *parent);
 int size(struct p *root);
 int checkIntegrity(struct p *root);
 void printNodes(struct p *root);
@@ -53,75 +53,157 @@ struct p *add(int v, struct p *somewhere)
 }
 
 /*
- * Removes an int node p from a BT of p nodes. This node
- * is returned and must be freed by the user.
+ * Removes an int node p from a BT of p nodes. The
+ * root is returned.
  */
-struct p *removeVal(int v, struct p *somewhere, struct p *parent)
+struct p *removeVal(int v, struct p *somewhere)
+{
+    if (v == somewhere->v) /* Value is root */
+    {
+        struct p *del = somewhere;
+        if (somewhere->left != NULL && somewhere->right != NULL)
+        {
+            struct p *temp = somewhere->left;
+            somewhere = somewhere->right;
+            addNode(temp, somewhere);
+            killNode(del);
+            return somewhere;
+        }
+
+        else
+        {
+            somewhere = (somewhere->left == NULL) ? somewhere->right : somewhere->left;
+            killNode(del);
+            return somewhere;
+        }
+    }
+
+    else if (v <= somewhere->v)
+    {
+        removeValHelper(v, somewhere->left, somewhere);
+        return somewhere;
+    }
+
+    else /* v > somewhere->v */
+    {
+        removeValHelper(v, somewhere->right, somewhere);
+        return somewhere;
+    }
+}
+
+/*
+ * Helper functinon of removeVal, which recursively searches
+ * for the node to delete if the original root was not the
+ * value v.
+ */
+struct p *removeValHelper(int v, struct p *somewhere, struct p *parent)
 {
     if (v < somewhere->v)
     {
         if (somewhere->left != NULL)
         {
-            return removeVal(v, somewhere->left, somewhere);
+            return removeValHelper(v, somewhere->left, somewhere);
         }
     }
     else if (v > somewhere->v)
     {
         if (somewhere->right != NULL)
         {
-            return removeVal(v, somewhere->right, somewhere);
+            return removeValHelper(v, somewhere->right, somewhere);
         }
     }
     else if (v == somewhere->v)
     {
-        if (somewhere->left == NULL)
+        if (parent->left == somewhere)
         {
-            if (parent == NULL)
+            if (somewhere->left != NULL && somewhere->right != NULL)
             {
-                parent = somewhere;
-                somewhere = somewhere->right;
-                return parent;
-            }
-            else if (parent->left == somewhere)
-            {
+                struct p *temp = somewhere->left;
                 parent->left = somewhere->right;
-                return somewhere;
-            }
-            else /* parent->right == somewhere */
-            {
-                parent->right = somewhere->right;
-                return somewhere;
-            }
-        }
-        else if (somewhere->right == NULL)
-        {
-            if (parent == NULL)
-            {
-                parent = somewhere;
-                somewhere = somewhere->left;
+                addNode(temp, parent->left);
+                killNode(somewhere);
                 return parent;
             }
-            else if (parent->left == somewhere)
+
+            else if (somewhere->right == NULL)
             {
                 parent->left = somewhere->left;
-                return somewhere;
+                killNode(somewhere);
+                return parent;
             }
-            else /* parent->right == somewhere */
+            else /* somewhere->right == NULL */
             {
-                parent->right = somewhere->left;
-                return somewhere;
+                parent->left = somewhere->right;
+                killNode(somewhere);
+                return parent;
             }
         }
-        else /* both somewhere->left and somewhere->right != NULL */
+        else if (parent->right == somewhere)
         {
-            struct p *temp = somewhere->right;
-            while (temp->left != NULL)
-                temp = temp->left;
-            somewhere->v = temp->v;
-            return removeVal(temp->v, somewhere->right, somewhere);
+            if (somewhere->left != NULL && somewhere->right != NULL)
+            {
+                struct p *temp = somewhere->left;
+                parent->right = somewhere->right;
+                addNode(temp, parent->right);
+                killNode(somewhere);
+                return parent;
+            }
+            else if (somewhere->right == NULL)
+            {
+                parent->right = somewhere->left;
+                killNode(somewhere);
+                return parent;
+            }
+            else /* somewhere->right == NULL */
+            {
+                parent->right = somewhere->right;
+                killNode(somewhere);
+                return parent;
+            }
         }
     }
     return NULL;
+}
+
+/*
+ * Add a p node from a node to a BST.
+ */
+int addNode(struct p *node, struct p *root)
+{
+
+    struct p *temp = root;
+    while (temp != NULL)
+    {
+        if (node->v <= temp->v)
+        {
+            if (temp->left == NULL)
+            {
+                temp->left = node;
+                return node->v;
+            }
+            temp = temp->left;
+        }
+        else
+        {
+            if (temp->right == NULL)
+            {
+                temp->right = node;
+                return node->v;
+            }
+            temp = temp->right;
+        }
+    }
+    /* Should not reach here */
+    return node->v;
+}
+
+void killNode(struct p *node)
+{
+    node->left = 0x0;
+    node->right = 0x0;
+    node->v = 0;
+    free(node);
+    return;
 }
 
 /*
@@ -152,9 +234,23 @@ int checkIntegrity(struct p *root)
     int valid = 1;
 
     if (root->left != NULL)
+    {
         valid *= root->left->v <= root->v;
+        if (!valid)
+        {
+            printf("Integrity failed at root-v == %d\r\n", root->v);
+            return 0;
+        }
+    }
     if (root->right != NULL)
+    {
         valid *= root->v < root->right->v;
+        if (!valid)
+        {
+            printf("Integrity failed at root-v == %d\r\n", root->v);
+            return 0;
+        }
+    }
 
     valid *= checkIntegrity(root->left);
     valid *= checkIntegrity(root->right);

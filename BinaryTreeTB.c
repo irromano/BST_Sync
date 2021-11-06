@@ -20,10 +20,20 @@ int main()
 
     printNodes(root);
     printf("The total node count is %d\r\n", size(root));
-    free(removeVal(5, root, NULL));
+    root = removeVal(10, root);
     printNodes(root);
     printf("The total node count is %d\r\n", size(root));
     printf("The validity of the BT is %d\r\n", checkIntegrity(root));
-    root->left->v = 20;
-    printf("The validity of the BT is %d\r\n", checkIntegrity(root));
+
+    for (int i = 0; i < 10; i++)
+    {
+        add(10, root);
+        root = removeVal(10, root);
+        printNodes(root);
+        printf("The total node count is %d\r\n", size(root));
+        printf("The validity of the BT is %d\r\n", checkIntegrity(root));
+    }
+
+    // root->left->v = 20;
+    // printf("The validity of the BT is %d\r\n", checkIntegrity(root));
 }
