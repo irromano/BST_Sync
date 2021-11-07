@@ -3,11 +3,11 @@
 #include <time.h>
 #include <pthread.h>
 
-#include "BinaryTree.h"
+#include "BinaryTreeSync.h"
 
 #define ONE_K 1000
-#define ONE_HUNDRED_K 1000
-#define THREAD_COUNT 16
+#define ONE_HUNDRED_K 100000
+#define THREAD_COUNT 2
 
 struct p **root;
 
@@ -25,14 +25,15 @@ void workLoad()
     {
         int key = rand() % 16384 + 1; /* Random number between 1 to 16384 */
         add(key, *root);
+        // printf("Iteration %d, root %d, key %d\r\n", i, (*root)->v, key);
     }
-
+    printf("Finished initial adds\r\n");
     for (int i = 0; i < ONE_HUNDRED_K; i++)
     {
         int key = rand() % 16384 + 1; /* Random number between 1 to 16384 */
         add(key, *root);
         *root = removeVal(key, *root);
-        // printf("Iteration %d, root %d, key %d\r\n", i, (*root)->v, key);
+        printf("Iteration %d, key %d\r\n", i, key);
     }
 
     printf("The size of the array is %d\r\n", size(*root));
@@ -50,16 +51,18 @@ int main()
     srand(time(NULL));
     root = (struct p **)malloc(sizeof(struct p *));
     *root = (struct p *)malloc(sizeof(struct p));
+    pthread_mutex_init(&((*root)->lock), NULL);
+    (*root)->left = NULL;
+    (*root)->right = NULL;
     int rootKey = rand() % 16384 + 1; /* Random number between 1 to 16384 */
     (*root)->v = rootKey;
     pthread_t tid[THREAD_COUNT];
 
     // Starting the clock
     clock_t begin = clock();
-    printf("Hello World\r\n");
     // Creating Threads
     for (int i = 0; i < THREAD_COUNT; i++)
-        pthread_create(&tid[i], NULL, workLoad, NULL);
+        pthread_create(&(tid[i]), NULL, workLoad, NULL);
 
     for (int i = 0; i < THREAD_COUNT; i++)
         pthread_join(tid[i], NULL);

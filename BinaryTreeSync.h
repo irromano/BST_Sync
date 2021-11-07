@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include <pthread.h>
 
-#ifndef BINARYTREE_H
-#define BINARYTREE_H
+#ifndef BINARYTREESYNC_H
+#define BINARYTREESYNC_H
 
 struct p
 {
@@ -16,11 +16,11 @@ struct p
 struct p *add(int v, struct p *somewhere);
 struct p *removeVal(int v, struct p *somewhere);
 struct p *removeValHelper(int v, struct p *somewhere, struct p *parent);
-int addNode(struct p *node, struct p *root);
+struct p *addNode(struct p *node, struct p *root);
 int size(struct p *root);
 int checkIntegrity(struct p *root);
 void printNodes(struct p *root);
-void killNode(struct p *node);
+struct p *killNode(struct p *node);
 
 /*
  * Adds an int node p to a BT of p nodes. This malloc's
@@ -28,36 +28,50 @@ void killNode(struct p *node);
  */
 struct p *add(int v, struct p *somewhere)
 {
+    pthread_mutex_lock(&(somewhere->lock));
 
     struct p *node = (struct p *)malloc(sizeof(struct p));
     pthread_mutex_init(&(node->lock), NULL);
     pthread_mutex_lock(&(node->lock));
+    node->left = NULL;
+    node->right = NULL;
     node->v = v;
 
-    struct p *temp = somewhere;
-    while (temp != NULL)
+    struct p *parent = somewhere;
+    while (parent != NULL)
     {
-        if (v <= temp->v)
+        if (v <= parent->v)
         {
-            if (temp->left == NULL)
+            if (parent->left == NULL || parent->left->v == 0)
             {
-                temp->left = node;
+                parent->left = node;
+                pthread_mutex_unlock(&(node->lock));
+                pthread_mutex_unlock(&(parent->lock));
                 return node;
             }
-            temp = temp->left;
+            pthread_mutex_lock(&(parent->left->lock));
+            struct p *nextParent = parent->left;
+            pthread_mutex_unlock(&(parent->lock));
+            parent = nextParent;
         }
-        else
+        else /* v > parent->v */
         {
-            if (temp->right == NULL)
+            if (parent->right == NULL || parent->right->v == 0)
             {
-                temp->right = node;
+                parent->right = node;
+                pthread_mutex_unlock(&(node->lock));
+                pthread_mutex_unlock(&(parent->lock));
                 return node;
             }
-            temp = temp->right;
+            pthread_mutex_lock(&(parent->right->lock));
+            struct p *nextParent = parent->right;
+            pthread_mutex_unlock(&(parent->lock));
+            parent = nextParent;
         }
     }
     pthread_mutex_unlock(&(node->lock));
-    free(node);
+    killNode(node);
+    pthread_mutex_unlock(&(somewhere->lock));
     return node;
 }
 
@@ -68,51 +82,68 @@ struct p *add(int v, struct p *somewhere)
 struct p *removeVal(int v, struct p *somewhere)
 {
     if (somewhere == NULL)
-        return NULL;
+        return somewhere;
+
+    pthread_mutex_lock(&(somewhere->lock));
 
     if (v == somewhere->v) /* Value is root */
     {
         struct p *del = somewhere;
-        if (somewhere->left != NULL && somewhere->right != NULL)
+        if (somewhere->left != NULL && somewhere->right != NULL && somewhere->left->v != 0 && somewhere->right->v != 0)
         {
+            pthread_mutex_lock(&(somewhere->left->lock));
             struct p *temp = somewhere->left;
+            pthread_mutex_lock(&(somewhere->right->lock));
             somewhere = somewhere->right;
-            addNode(temp, somewhere);
-            killNode(del);
+            struct p *temp2 = addNode(temp, somewhere);
+            del = killNode(del);
+            pthread_mutex_unlock(&(temp2->lock));
             return somewhere;
         }
 
-        else if (somewhere->left != NULL)
+        else if (somewhere->left != NULL && somewhere->left->v != 0)
         {
+            pthread_mutex_lock(&(somewhere->left->lock));
             somewhere = somewhere->left;
-            killNode(del);
+            del = killNode(del);
+            pthread_mutex_unlock(&(somewhere->lock));
             return somewhere;
         }
-        else if (somewhere->right != NULL)
+        else if (somewhere->right != NULL && somewhere->right->v != 0)
         {
+            pthread_mutex_lock(&(somewhere->right->lock));
             somewhere = somewhere->right;
-            killNode(del);
+            del = killNode(del);
+            pthread_mutex_unlock(&(somewhere->lock));
             return somewhere;
         }
         else
         {
             somewhere = NULL;
-            killNode(del);
+            del = killNode(del);
             return somewhere;
         }
     }
 
-    else if (v <= somewhere->v)
+    else if (v <= somewhere->v && somewhere->left != NULL && somewhere->left->v != 0)
     {
-        removeValHelper(v, somewhere->left, somewhere);
+        pthread_mutex_lock(&(somewhere->left->lock));
+        struct p *deletedParent = removeValHelper(v, somewhere->left, somewhere);
+        pthread_mutex_unlock(&(deletedParent->lock));
         return somewhere;
     }
 
-    else /* v > somewhere->v */
+    else if (v > somewhere->v && somewhere->right != NULL && somewhere->right->v != 0)
     {
-        removeValHelper(v, somewhere->right, somewhere);
+        pthread_mutex_lock(&(somewhere->right->lock));
+        struct p *deletedParent = removeValHelper(v, somewhere->right, somewhere);
+        pthread_mutex_unlock(&(deletedParent->lock));
         return somewhere;
     }
+
+    /*else  v is not in this BST */
+    pthread_mutex_unlock(&(somewhere->lock));
+    return somewhere;
 }
 
 /*
@@ -124,127 +155,155 @@ struct p *removeValHelper(int v, struct p *somewhere, struct p *parent)
 {
     if (v < somewhere->v)
     {
-        if (somewhere->left != NULL)
+        if (somewhere->left != NULL && somewhere->left->v != 0)
         {
+            pthread_mutex_lock(&(somewhere->left->lock));
+            pthread_mutex_unlock(&(parent->lock));
             return removeValHelper(v, somewhere->left, somewhere);
         }
     }
     else if (v > somewhere->v)
     {
-        if (somewhere->right != NULL)
+        if (somewhere->right != NULL && somewhere->right->v != 0)
         {
+            pthread_mutex_lock(&(somewhere->right->lock));
+            pthread_mutex_unlock(&(parent->lock));
             return removeValHelper(v, somewhere->right, somewhere);
         }
     }
-    else if (v == somewhere->v)
+    if (v == somewhere->v)
     {
         if (parent->left == somewhere)
         {
-            if (somewhere->left != NULL && somewhere->right != NULL)
+            if (somewhere->left != NULL && somewhere->right != NULL && somewhere->left->v != 0 && somewhere->right->v != 0)
             {
-                struct p *temp = somewhere->left;
+                pthread_mutex_lock(&(somewhere->left->lock));
+                struct p *delLeft = somewhere->left;
+                pthread_mutex_lock(&(somewhere->right->lock));
                 parent->left = somewhere->right;
-                addNode(temp, parent->left);
-                killNode(somewhere);
+                somewhere = killNode(somewhere);
+                pthread_mutex_unlock(&(parent->lock));
+                parent = addNode(delLeft, parent->left);
                 return parent;
             }
 
-            else if (somewhere->left != NULL)
+            else if (somewhere->left != NULL && somewhere->left->v != 0)
             {
+                pthread_mutex_lock(&(somewhere->left->lock));
                 parent->left = somewhere->left;
-                killNode(somewhere);
+                somewhere = killNode(somewhere);
+                pthread_mutex_unlock(&(parent->left->lock));
                 return parent;
             }
-            else if (somewhere->right != NULL)
+            else if (somewhere->right != NULL && somewhere->right->v != 0)
             {
+                pthread_mutex_lock(&(somewhere->right->lock));
                 parent->left = somewhere->right;
-                killNode(somewhere);
+                somewhere = killNode(somewhere);
+                pthread_mutex_unlock(&(parent->left->lock));
                 return parent;
             }
             else
             {
                 parent->left = NULL;
-                killNode(somewhere);
+                somewhere = killNode(somewhere);
                 return parent;
             }
         }
-        else if (parent->right == somewhere)
+        if (parent->right == somewhere)
         {
-            if (somewhere->left != NULL && somewhere->right != NULL)
+            if (somewhere->left != NULL && somewhere->right != NULL && somewhere->left->v != 0 && somewhere->right->v != 0)
             {
-                struct p *temp = somewhere->left;
+                pthread_mutex_lock(&(somewhere->left->lock));
+                struct p *delLeft = somewhere->left;
+                pthread_mutex_lock(&(somewhere->right->lock));
                 parent->right = somewhere->right;
-                addNode(temp, parent->right);
-                killNode(somewhere);
+                somewhere = killNode(somewhere);
+                pthread_mutex_unlock(&(parent->lock));
+                parent = addNode(delLeft, parent->right);
                 return parent;
             }
-            else if (somewhere->left != NULL)
+            else if (somewhere->left != NULL && somewhere->left->v != 0)
             {
+                pthread_mutex_lock(&(somewhere->left->lock));
                 parent->right = somewhere->left;
-                killNode(somewhere);
+                somewhere = killNode(somewhere);
+                pthread_mutex_unlock(&(parent->right->lock));
                 return parent;
             }
-            else if (somewhere->right != NULL)
+            else if (somewhere->right != NULL && somewhere->right->v != 0)
             {
+                pthread_mutex_lock(&(somewhere->right->lock));
                 parent->right = somewhere->right;
-                killNode(somewhere);
+                somewhere = killNode(somewhere);
+                pthread_mutex_unlock(&(parent->right->lock));
                 return parent;
             }
             else
             {
                 parent->right = NULL;
-                killNode(somewhere);
+                somewhere = killNode(somewhere);
                 return parent;
             }
         }
     }
-    return NULL;
+    pthread_mutex_unlock(&(somewhere->lock));
+    return parent;
 }
 
 /*
  * Add a p node from a node to a BST.
  */
-int addNode(struct p *node, struct p *root)
+struct p *addNode(struct p *node, struct p *root)
 {
     if (node == NULL)
-        return 0;
+        return root;
 
     struct p *temp = root;
     while (temp != NULL)
     {
         if (node->v <= temp->v)
         {
-            if (temp->left == NULL)
+            if (temp->left == NULL || temp->left->v == 0)
             {
                 temp->left = node;
-                return node->v;
+                pthread_mutex_unlock(&(node->lock));
+                return temp;
             }
+            struct p *temp2 = temp;
             temp = temp->left;
+            pthread_mutex_unlock(&(temp2->lock));
+            pthread_mutex_lock(&(temp->lock));
         }
         else
         {
-            if (temp->right == NULL)
+            if (temp->right == NULL || temp->right->v == 0)
             {
                 temp->right = node;
-                return node->v;
+                pthread_mutex_unlock(&(node->lock));
+                return temp;
             }
+            struct p *temp2 = temp;
             temp = temp->right;
+            pthread_mutex_unlock(&(temp2->lock));
+            pthread_mutex_lock(&(temp->lock));
         }
     }
     /* Should not reach here */
     printf("Error in adding node\n");
-    return node->v;
+    return node;
 }
 
-void killNode(struct p *node)
+struct p *killNode(struct p *node)
 {
-    free(node); /* Freeing node afterwards randomly assigned variables to that node */
     node->left = NULL;
     node->right = NULL;
     node->v = 0;
+    free(node); /* Freeing node afterwards randomly assigned variables to that node */
     pthread_mutex_unlock(&(node->lock));
+    pthread_mutex_destroy(&(node->lock));
     // free(node);
-    return;
+    return NULL;
 }
 
 /*
